@@ -6,8 +6,14 @@ import io
 import os
 import logging
 import numpy as np
-import torch
-from scipy.ndimage import gaussian_filter
+try:
+    import torch
+except ImportError:
+    torch = None
+try:
+    from scipy.ndimage import gaussian_filter
+except ImportError:
+    gaussian_filter = None
 from typing import Optional, Tuple, Dict, Any
 
 from preprocess import read_geotiff, normalize_sar, normalize_dem, tokenize_precipitation

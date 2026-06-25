@@ -72,8 +72,11 @@ def normalize_dem(arr: np.ndarray, target_h: int = 256, target_w: int = 256) -> 
     curvature = np.gradient(slope, axis=0) + np.gradient(slope, axis=1)
 
     # Flow accumulation proxy (low-pass of elevation)
-    from scipy.ndimage import uniform_filter
-    flow_acc = -uniform_filter(arr[0], size=15)
+    try:
+        from scipy.ndimage import uniform_filter
+        flow_acc = -uniform_filter(arr[0], size=15)
+    except ImportError:
+        flow_acc = -np.convolve(arr[0].ravel(), np.ones(15)/15, mode='same').reshape(arr[0].shape)
 
     channels += [slope, aspect, curvature, flow_acc]
 
