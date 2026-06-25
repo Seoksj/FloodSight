@@ -1,0 +1,27 @@
+# Web framework
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+pydantic>=2.7.0
+python-dotenv>=1.0.0
+
+# HTTP client
+httpx>=0.27.0
+
+# Scheduling
+apscheduler>=3.10.4
+
+# Numerical / geospatial
+numpy>=1.26.0
+scipy>=1.13.0
+shapely>=2.0.0
+
+# Raster I/O (optional: rasterio for GeoTIFF)
+rasterio>=1.3.10
+
+# ML (existing pipeline)
+torch>=2.2.0
+transformers>=4.40.0
+
+# Dev / test
+pytest>=8.0.0

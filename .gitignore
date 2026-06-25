@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.venv2/
+*.egg-info/
+dist/
+.env
+.env.local
+
+# Node
+node_modules/
+flood-risk-demo/frontend/dist/
+
+# IDE
+.DS_Store
+.vscode/
+.idea/
+
+# ML
+flood-risk-demo/backend/checkpoints/*.pt
+
+# Claude Code
+.claude/
+
+# Logs
+*.log
