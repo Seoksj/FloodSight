@@ -1,66 +1,78 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 
-const COLORS = {
-  dark: {
-    bgBase:       "#060c18",
-    bgSurface:    "#0d1526",
-    bgCard:       "#111d35",
-    bgCardHover:  "#152040",
-    bgInput:      "rgba(255,255,255,0.04)",
-    bgOverlay:    "rgba(6,12,24,0.95)",
-    bgNum:        "rgba(0,0,0,0.20)",
-    border:       "rgba(255,255,255,0.06)",
-    borderMid:    "rgba(255,255,255,0.10)",
-    textPrimary:  "#e2e8f0",
-    textSecond:   "#94a3b8",
-    textMuted:    "#64748b",
-    textFaint:    "#334155",
-    pillActive:   "rgba(37,99,235,0.20)",
-    pillActiveBorder: "rgba(37,99,235,0.40)",
-    pillText:     "#60a5fa",
-    mapBg:        "rgba(6,12,24,0.75)",
-    toggleTrack:  "rgba(255,255,255,0.04)",
-  },
+export const COLORS = {
   light: {
-    bgBase:       "#eef2f7",
-    bgSurface:    "#ffffff",
-    bgCard:       "#f8fafc",
-    bgCardHover:  "#f1f5f9",
-    bgInput:      "rgba(0,0,0,0.04)",
-    bgOverlay:    "rgba(255,255,255,0.97)",
-    bgNum:        "rgba(0,0,0,0.05)",
-    border:       "rgba(0,0,0,0.08)",
-    borderMid:    "rgba(0,0,0,0.13)",
-    textPrimary:  "#0f172a",
-    textSecond:   "#334155",
-    textMuted:    "#64748b",
-    textFaint:    "#94a3b8",
-    pillActive:   "rgba(37,99,235,0.12)",
-    pillActiveBorder: "rgba(37,99,235,0.35)",
-    pillText:     "#2563eb",
-    mapBg:        "rgba(248,250,252,0.88)",
-    toggleTrack:  "rgba(0,0,0,0.06)",
+    bg:          "#f4f2ef",
+    surface:     "#ffffff",
+    surface2:    "#faf9f7",
+    elev:        "0 1px 2px rgba(28,25,20,.05),0 4px 16px rgba(28,25,20,.05)",
+    border:      "#e7e3dd",
+    border2:     "#efece7",
+    text:        "#23211d",
+    text2:       "#6c6860",
+    text3:       "#a6a199",
+    primary:     "#33507e",
+    primarySoft: "#eaeff8",
+    danger:      "#dd382e",
+    alert:       "#e87d2c",
+    caution:     "#d99e0b",
+    safe:        "#1f9d57",
+    dangerSoft:  "#fbe9e7",
+    alertSoft:   "#fceede",
+    cautionSoft: "#f8f0d6",
+    safeSoft:    "#e6f4ec",
+  },
+  dark: {
+    bg:          "#141519",
+    surface:     "#1c1e24",
+    surface2:    "#23262d",
+    elev:        "0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.35)",
+    border:      "#2c2f37",
+    border2:     "#262932",
+    text:        "#ecead9",
+    text2:       "#a3a7b0",
+    text3:       "#71757e",
+    primary:     "#7aa1e6",
+    primarySoft: "#232b3a",
+    danger:      "#f15a50",
+    alert:       "#f0913f",
+    caution:     "#e6b22a",
+    safe:        "#34b46e",
+    dangerSoft:  "#34201e",
+    alertSoft:   "#352818",
+    cautionSoft: "#322a14",
+    safeSoft:    "#16291f",
   },
 };
+
+// 백엔드 grade 문자열 → 색상 키 매핑
+export const GRADE_MAP = {
+  안전: { key: "safe",    label: "안전" },
+  주의: { key: "caution", label: "주의" },
+  경보: { key: "alert",   label: "경보" },
+  위험: { key: "danger",  label: "위험" },
+};
+
+export function gradeStyle(c, grade) {
+  const g = GRADE_MAP[grade] ?? GRADE_MAP["안전"];
+  return { color: c[g.key], bg: c[g.key + "Soft"], key: g.key, label: g.label };
+}
 
 const ThemeContext = createContext({ theme: "dark", c: COLORS.dark, toggle: () => {} });
 
 export function ThemeProvider({ children }) {
-  const saved  = () => localStorage.getItem("theme") || "dark";
-  const [theme, setTheme] = useState(saved);
+  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
   const c = COLORS[theme];
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
+    document.body.style.background = c.bg;
+    document.body.style.color = c.text;
     localStorage.setItem("theme", theme);
-
-    // CSS 변수는 [data-theme] 규칙이 자동 처리 — JS override 불필요
-  }, [theme]);
-
-  const toggle = () => setTheme(t => t === "dark" ? "light" : "dark");
+  }, [theme, c]);
 
   return (
-    <ThemeContext.Provider value={{ theme, c, toggle }}>
+    <ThemeContext.Provider value={{ theme, c, toggle: () => setTheme(t => t === "dark" ? "light" : "dark") }}>
       {children}
     </ThemeContext.Provider>
   );

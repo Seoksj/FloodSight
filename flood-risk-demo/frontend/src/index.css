@@ -3,101 +3,68 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    /* dark (기본) */
-    --bg-base:      #060c18;
-    --bg-surface:   #0d1526;
-    --bg-card:      #111d35;
-    --border:       rgba(255,255,255,0.06);
-    --border-mid:   rgba(255,255,255,0.10);
-    --text-primary: #e2e8f0;
-    --text-muted:   #64748b;
-  }
-
-  [data-theme="light"] {
-    --bg-base:      #eef2f7;
-    --bg-surface:   #ffffff;
-    --bg-card:      #f8fafc;
-    --border:       rgba(0,0,0,0.08);
-    --border-mid:   rgba(0,0,0,0.13);
-    --text-primary: #0f172a;
-    --text-muted:   #64748b;
-  }
-
-  * { box-sizing: border-box; }
+  *, *::before, *::after { box-sizing: border-box; }
 
   body {
-    background: var(--bg-base);
-    color: var(--text-primary);   /* ← CSS 변수로 변경 */
-    font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, -apple-system, sans-serif;
+    margin: 0;
+    font-family: 'Pretendard', -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     min-height: 100vh;
   }
 
-  ::-webkit-scrollbar { width: 4px; }
+  .mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.2); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.2); border-radius: 6px; }
   ::-webkit-scrollbar-thumb:hover { background: rgba(128,128,128,0.35); }
 }
 
-@layer components {
-  .glass {
-    background: rgba(13, 21, 38, 0.92);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid var(--border-mid);
-  }
-
-  .card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-  }
-
-  .btn-ghost {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text-muted);
-    transition: all 0.15s;
-  }
-  .btn-ghost:hover {
-    background: rgba(255,255,255,0.08);
-    border-color: var(--border-mid);
-    color: var(--text-primary);
-  }
-
-  .pill {
-    padding: 3px 10px;
-    border-radius: 999px;
-    font-size: 11px;
-    font-weight: 500;
-    border: 1px solid transparent;
-    transition: all 0.15s;
-    cursor: pointer;
-  }
-}
-
-/* Leaflet tooltip */
-.flood-tooltip {
-  background: rgba(6,12,24,0.96) !important;
-  border: 1px solid rgba(255,255,255,0.10) !important;
-  color: #e2e8f0 !important;
-  font-size: 12px !important;
-  font-family: inherit !important;
-  padding: 8px 10px !important;
+/* Leaflet 커스터마이징 */
+.leaflet-container { font-family: 'Pretendard', sans-serif !important; }
+.leaflet-control-zoom a {
   border-radius: 8px !important;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important;
-  line-height: 1.5 !important;
+  border-color: var(--border, #e7e3dd) !important;
 }
-.flood-tooltip::before { display: none !important; }
+.leaflet-bar { border: none !important; }
 
-/* Animations */
-@keyframes gauge-fill { from { width: 0; } }
-.gauge-bar { animation: gauge-fill 0.6s cubic-bezier(0.4,0,0.2,1); }
-
-@keyframes danger-pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.5; }
+.fs-tooltip {
+  background: var(--surface, #fff) !important;
+  color: var(--text, #23211d) !important;
+  border: 1px solid var(--border, #e7e3dd) !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  padding: 5px 9px !important;
+  white-space: nowrap !important;
 }
-.danger-pulse { animation: danger-pulse 1.5s ease-in-out infinite; }
+.fs-tooltip::before { display: none !important; }
+
+/* 애니메이션 */
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(221,56,46,.45); }
+  70%  { box-shadow: 0 0 0 8px rgba(221,56,46,0); }
+  100% { box-shadow: 0 0 0 0 rgba(221,56,46,0); }
+}
+@keyframes fadeup {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes slidein {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes bar-fill {
+  from { width: 0; }
+}
+
+.pulse-ring    { animation: pulse-ring 2.2s infinite; }
+.anim-fadeup   { animation: fadeup .22s ease; }
+.anim-slidein  { animation: slidein .18s ease; }
+.anim-spin     { animation: spin 1s linear infinite; }
+.bar-fill      { animation: bar-fill .55s cubic-bezier(.4,0,.2,1); }

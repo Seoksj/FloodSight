@@ -1,48 +1,18 @@
 import React, { useState, useCallback } from "react";
-import { useTheme } from "../ThemeContext.jsx";
+import { useTheme, gradeStyle } from "../ThemeContext.jsx";
 import { apiFetch } from "../api.js";
 
-const GRADE_CFG = {
-  안전: { color: "#22c55e", bg: "rgba(34,197,94,0.08)",   border: "rgba(34,197,94,0.20)"  },
-  주의: { color: "#eab308", bg: "rgba(234,179,8,0.08)",   border: "rgba(234,179,8,0.20)"  },
-  경보: { color: "#f97316", bg: "rgba(249,115,22,0.08)",  border: "rgba(249,115,22,0.20)" },
-  위험: { color: "#ef4444", bg: "rgba(239,68,68,0.10)",   border: "rgba(239,68,68,0.25)"  },
-};
+const TIPS = [
+  "지하 주차장·반지하 등 저지대 장소는 즉시 대피하세요.",
+  "하천변·지하차도 통행을 삼가고 우회로를 이용하세요.",
+  "강수 강도가 높아지면 가까운 대피소로 이동하세요.",
+];
 
-function ScoreArc({ score, color }) {
-  const pct  = Math.min(score, 1);
-  const r    = 36;
-  const circ = 2 * Math.PI * r;
-  const dash = circ * 0.75;
-  const fill = dash * pct;
+export default function LocationPanel({ onBack, onDistrictClick }) {
   const { c } = useTheme();
-
-  return (
-    <svg width="96" height="72" viewBox="0 0 96 72">
-      <circle cx="48" cy="56" r={r} fill="none"
-        stroke={c.border} strokeWidth="7"
-        strokeDasharray={`${dash} ${circ}`}
-        strokeLinecap="round"
-        transform="rotate(-135 48 56)" />
-      <circle cx="48" cy="56" r={r} fill="none"
-        stroke={color} strokeWidth="7"
-        strokeDasharray={`${fill} ${circ}`}
-        strokeLinecap="round"
-        transform="rotate(-135 48 56)"
-        style={{ transition: "stroke-dasharray 0.6s cubic-bezier(0.4,0,0.2,1)" }} />
-      <text x="48" y="52" textAnchor="middle" fontSize="18" fontWeight="700" fill={color}>
-        {Math.round(score * 100)}
-      </text>
-      <text x="48" y="64" textAnchor="middle" fontSize="9" fill={c.textFaint}>점</text>
-    </svg>
-  );
-}
-
-export default function LocationPanel() {
-  const { c } = useTheme();
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState(null);
-  const [result,  setResult]  = useState(null);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState(null);
+  const [result,   setResult]   = useState(null);
 
   const detect = useCallback(() => {
     setError(null); setLoading(true);
@@ -54,107 +24,158 @@ export default function LocationPanel() {
       async ({ coords: { latitude: lat, longitude: lon } }) => {
         try {
           const res = await apiFetch(`/api/risk/point?lat=${lat}&lon=${lon}`);
-          if (!res.ok) {
-            let msg = `HTTP ${res.status}`;
-            try { msg = (await res.json()).detail ?? msg; } catch {}
-            throw new Error(msg);
-          }
-          setResult({ ...(await res.json()), fetchedAt: new Date() });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          setResult({ ...(await res.json()), lat, lon });
         } catch (e) { setError(e.message); }
         finally { setLoading(false); }
       },
-      (e) => { setError(`위치 권한 오류: ${e.message}`); setLoading(false); },
+      (e) => { setError(`위치 오류: ${e.message}`); setLoading(false); },
       { timeout: 10000 }
     );
   }, []);
 
-  const cfg    = result ? (GRADE_CFG[result.grade] ?? GRADE_CFG["안전"]) : null;
-  const overMm = result ? Math.round((result.rainfall_1h - result.drainage_capacity) * 10) / 10 : 0;
-  const isOver = result && result.rainfall_1h > result.drainage_capacity;
+  const gs = result ? gradeStyle(c, result.grade) : null;
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold tracking-wide" style={{ color: c.textMuted }}>내 위치 위험도</span>
-        <button onClick={detect} disabled={loading}
-          className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all"
-          style={loading
-            ? { background: c.bgInput, color: c.textFaint, cursor: "not-allowed" }
-            : { background: c.pillActive, color: c.pillText, border: `1px solid ${c.pillActiveBorder}` }}>
-          {loading
-            ? <><svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-              </svg>탐색 중</>
-            : <><svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-              </svg>내 위치</>
-          }
+    <div className="anim-slidein">
+      {/* 헤더 */}
+      <div style={{ padding: "14px 18px", borderBottom: `1px solid ${c.border2}`,
+                    display: "flex", alignItems: "center", gap: 10 }}>
+        <button onClick={onBack}
+          style={{ width: 32, height: 32, border: `1px solid ${c.border}`, background: c.surface2,
+                   borderRadius: 9, cursor: "pointer", color: c.text2, fontSize: 16,
+                   display: "flex", alignItems: "center", justifyContent: "center" }}>
+          ←
         </button>
+        <div style={{ fontSize: 13, fontWeight: 700, color: c.text2 }}>내 위치 위험도</div>
       </div>
 
-      {error && (
-        <div className="text-xs px-3 py-2 rounded-lg"
-             style={{ background: "rgba(239,68,68,0.08)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}>
+      {/* 로딩 */}
+      {loading && (
+        <div style={{ padding: "60px 24px", textAlign: "center" }}>
+          <div className="anim-spin"
+               style={{ width: 44, height: 44, borderRadius: "50%",
+                        border: `3px solid ${c.border}`, borderTopColor: c.primary,
+                        margin: "0 auto 16px" }} />
+          <div style={{ fontSize: 14, color: c.text2, fontWeight: 600 }}>현재 위치를 확인하는 중...</div>
+        </div>
+      )}
+
+      {/* 오류 */}
+      {error && !loading && (
+        <div style={{ margin: "16px 18px", padding: "12px 14px", borderRadius: 10,
+                      background: c.dangerSoft, color: c.danger, fontSize: 13,
+                      border: `1px solid ${c.danger}44` }}>
           {error}
         </div>
       )}
 
-      {result && cfg && (
-        <div className="rounded-xl p-4" style={{ background: cfg.bg, border: `1px solid ${cfg.border}` }}>
-          <div className="flex items-center gap-3 mb-3">
-            <ScoreArc score={result.risk_score} color={cfg.color} />
-            <div className="flex-1">
-              <div className="text-xl font-bold" style={{ color: cfg.color }}>{result.grade}</div>
-              <div className="text-sm font-medium mt-0.5" style={{ color: c.textPrimary }}>
-                {result.nearest_district?.name}
+      {/* 결과 */}
+      {result && gs && !loading && (
+        <div style={{ padding: "18px 18px 24px" }}>
+          <div style={{ fontSize: 12, color: c.text3, fontWeight: 600, marginBottom: 3 }}>◎ 현재 위치</div>
+          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-.02em" }}>
+            {result.nearest_district?.city} {result.nearest_district?.gu}
+          </div>
+          <div className="mono" style={{ fontSize: 12, color: c.text3, marginTop: 2 }}>
+            {result.lat?.toFixed(4)}, {result.lon?.toFixed(4)}
+          </div>
+
+          {/* 위험 등급 카드 */}
+          <div style={{ marginTop: 16, borderRadius: 15, padding: 20, textAlign: "center",
+                        color: "#fff",
+                        background: `linear-gradient(150deg,${gs.color},${gs.color}cc)`,
+                        boxShadow: `0 8px 24px ${gs.color}44` }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, opacity: .9 }}>현재 침수 위험 단계</div>
+            <div style={{ fontSize: 32, fontWeight: 800, margin: "5px 0 2px", letterSpacing: "-.01em" }}>
+              {result.grade}
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 600, opacity: .9 }}>
+              위험 점수 {Math.round(result.risk_score * 100)}점
+            </div>
+          </div>
+
+          {/* 수치 그리드 */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9, marginTop: 12 }}>
+            <div style={{ border: `1px solid ${c.border}`, borderRadius: 12, padding: 13 }}>
+              <div style={{ fontSize: 11, color: c.text3, fontWeight: 600 }}>현재 강수량</div>
+              <div className="mono" style={{ fontSize: 20, fontWeight: 700, marginTop: 2 }}>
+                {result.rainfall_1h}
+                <span style={{ fontSize: 12, color: c.text3 }}> mm</span>
               </div>
-              <div className="text-xs mt-0.5" style={{ color: c.textMuted }}>
-                {result.nearest_district?.city} {result.nearest_district?.gu}
-                {result.nearest_district?.distance_km && ` · ${result.nearest_district.distance_km}km`}
+            </div>
+            <div style={{ border: `1px solid ${c.border}`, borderRadius: 12, padding: 13 }}>
+              <div style={{ fontSize: 11, color: c.text3, fontWeight: 600 }}>하수도 여유</div>
+              <div className="mono"
+                   style={{ fontSize: 20, fontWeight: 700, marginTop: 2, color: gs.color }}>
+                {result.rainfall_1h > result.drainage_capacity
+                  ? `+${(result.rainfall_1h - result.drainage_capacity).toFixed(1)}`
+                  : (result.drainage_capacity - result.rainfall_1h).toFixed(1)}
+                <span style={{ fontSize: 12, color: c.text3 }}> mm</span>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 mb-3">
-            {[
-              { label: "강수량",     value: `${result.rainfall_1h}mm/hr` },
-              { label: "하수도 용량", value: `${result.drainage_capacity}mm/hr` },
-              {
-                label: "배수 상태",
-                value: isOver ? `+${overMm}mm 초과` : `여유 ${Math.abs(overMm)}mm`,
-                color: isOver ? "#f87171" : "#4ade80",
-              },
-              { label: "위험 점수", value: `${Math.round(result.risk_score * 100)}점`, color: cfg.color },
-            ].map(({ label, value, color }) => (
-              <div key={label} className="rounded-lg px-3 py-2" style={{ background: c.bgNum }}>
-                <div className="text-[10px] mb-0.5" style={{ color: c.textFaint }}>{label}</div>
-                <div className="text-xs font-semibold" style={{ color: color || c.textPrimary }}>{value}</div>
+          {/* 가장 가까운 위험 지구 */}
+          {result.nearest_district && (
+            <button onClick={() => onDistrictClick?.(result.nearest_district)}
+              style={{ width: "100%", marginTop: 10, border: `1px solid ${c.border}`,
+                       borderRadius: 12, padding: "12px 13px", display: "flex", alignItems: "center",
+                       gap: 11, background: c.surface, cursor: "pointer", fontFamily: "inherit",
+                       textAlign: "left" }}>
+              <div style={{ width: 36, height: 36, borderRadius: 9, background: c.dangerSoft,
+                            color: c.danger, display: "flex", alignItems: "center",
+                            justifyContent: "center", fontSize: 15, flexShrink: 0 }}>
+                ⚠
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>가장 가까운 위험 지구</div>
+                <div style={{ fontSize: 12.5, color: c.text2, fontWeight: 500, marginTop: 1 }}>
+                  {result.nearest_district.name} · {result.nearest_district.distance_km}km
+                </div>
+              </div>
+            </button>
+          )}
+
+          {/* 행동 요령 */}
+          <div style={{ fontSize: 13, fontWeight: 700, color: c.text2, margin: "18px 0 10px" }}>
+            행동 요령
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {TIPS.map((tip, i) => (
+              <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start",
+                                    border: `1px solid ${c.border}`, borderRadius: 11,
+                                    padding: "11px 13px" }}>
+                <span style={{ color: c.primary, fontWeight: 800, fontSize: 13, marginTop: 1 }}>
+                  {i + 1}
+                </span>
+                <span style={{ fontSize: 13, color: c.text, lineHeight: 1.5, fontWeight: 500 }}>
+                  {tip}
+                </span>
               </div>
             ))}
-          </div>
-
-          <p className="text-xs leading-relaxed" style={{ color: c.textMuted }}>{result.reason}</p>
-          <div className="mt-2 text-[10px]" style={{ color: c.textFaint }}>
-            {result.fetchedAt?.toLocaleString("ko-KR")} 기준
           </div>
         </div>
       )}
 
+      {/* 초기 상태 */}
       {!result && !loading && !error && (
-        <div className="rounded-xl p-5 text-center" style={{ background: c.bgCard, border: `1px solid ${c.border}` }}>
-          <div className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3"
-               style={{ background: c.pillActive }}>
-            <svg className="w-5 h-5" style={{ color: c.pillText }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round"
-                d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-            </svg>
-          </div>
-          <p className="text-xs" style={{ color: c.textMuted }}>
-            버튼을 눌러 현재 위치의<br/>침수 위험도를 확인하세요
-          </p>
+        <div style={{ padding: "24px 18px" }}>
+          <button onClick={detect}
+            style={{ width: "100%", border: `1px solid ${c.primary}`, color: c.primary,
+                     background: c.primarySoft, borderRadius: 13, padding: 20,
+                     display: "flex", flexDirection: "column", alignItems: "center", gap: 9,
+                     cursor: "pointer", fontFamily: "inherit" }}>
+            <div style={{ width: 44, height: 44, borderRadius: "50%", background: c.primary,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          color: "#fff", fontSize: 20 }}>
+              ◎
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>내 위치 확인</div>
+            <div style={{ fontSize: 12.5, color: c.text2, lineHeight: 1.5 }}>
+              GPS로 현재 위치의 침수 위험도를 조회합니다
+            </div>
+          </button>
         </div>
       )}
     </div>

@@ -1,189 +1,152 @@
-import React, { useEffect, useState } from "react";
-import { useTheme } from "../ThemeContext.jsx";
-import { apiFetch } from "../api.js";
+import React, { useState } from "react";
+import { useTheme, gradeStyle } from "../ThemeContext.jsx";
 
-const GRADE_CFG = {
-  안전: { color: "#22c55e", bg: "rgba(34,197,94,0.10)",   border: "rgba(34,197,94,0.22)"  },
-  주의: { color: "#eab308", bg: "rgba(234,179,8,0.10)",   border: "rgba(234,179,8,0.22)"  },
-  경보: { color: "#f97316", bg: "rgba(249,115,22,0.10)",  border: "rgba(249,115,22,0.22)" },
-  위험: { color: "#ef4444", bg: "rgba(239,68,68,0.12)",   border: "rgba(239,68,68,0.28)"  },
-};
 const GRADE_ORDER = { 위험: 0, 경보: 1, 주의: 2, 안전: 3 };
-const HORIZON_LABEL = { current: "현재", "1h": "1시간 후", "3h": "3시간 후" };
 
-function GradePill({ grade }) {
-  const cfg = GRADE_CFG[grade] ?? GRADE_CFG["안전"];
-  return (
-    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md"
-          style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>
-      {grade}
-    </span>
-  );
-}
-
-function RainBar({ rainfall, capacity, grade }) {
+export default function DistrictPanel({ districts, horizon, getDisp, onDistrictClick, onLocationClick }) {
   const { c } = useTheme();
-  const cfg    = GRADE_CFG[grade] ?? GRADE_CFG["안전"];
-  const pct    = Math.min(rainfall / Math.max(capacity, 1) * 100, 100);
-  const isOver = rainfall > capacity;
-  return (
-    <div className="relative h-1.5 rounded-full overflow-hidden" style={{ background: c.border }}>
-      <div className="absolute inset-y-0 left-0 rounded-full gauge-bar"
-           style={{
-             width: `${pct}%`,
-             background: cfg.color,
-             boxShadow: isOver ? `0 0 6px ${cfg.color}` : "none",
-           }} />
-    </div>
-  );
-}
-
-export default function DistrictPanel({ highlightId, horizon = "current" }) {
-  const { c } = useTheme();
-  const [districts,   setDistricts]  = useState([]);
-  const [loading,     setLoading]    = useState(true);
-  const [cityFilter,  setCity]       = useState("전체");
-  const [gradeFilter, setGrade]      = useState("전체");
-
-  const fetchData = async () => {
-    try {
-      const res = await apiFetch("/api/districts");
-      if (res.ok) setDistricts((await res.json()).districts ?? []);
-    } catch {}
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => {
-    fetchData();
-    const id = setInterval(fetchData, 10 * 60 * 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  useEffect(() => { setGrade("전체"); }, [horizon]);
-
-  const getDisp = (d) => {
-    if (horizon === "current") return { grade: d.grade, rainfall: d.rainfall_1h, score: d.risk_score };
-    const fc = d.forecast?.[horizon];
-    return { grade: fc?.grade ?? d.grade, rainfall: fc?.rainfall ?? d.rainfall_1h, score: fc?.risk_score ?? d.risk_score };
-  };
+  const [cityFilter, setCity] = useState("전체");
 
   const cities = ["전체", ...new Set(districts.map(d => d.city))];
-  let visible = [...districts];
-  if (cityFilter !== "전체")  visible = visible.filter(d => d.city === cityFilter);
-  if (gradeFilter !== "전체") visible = visible.filter(d => getDisp(d).grade === gradeFilter);
-  visible.sort((a, b) => (GRADE_ORDER[getDisp(a).grade] ?? 4) - (GRADE_ORDER[getDisp(b).grade] ?? 4));
 
-  const alertCnt = districts.filter(d => ["경보","위험"].includes(getDisp(d).grade)).length;
-  const gradeCounts = { 위험: 0, 경보: 0, 주의: 0, 안전: 0 };
-  districts.forEach(d => { const g = getDisp(d).grade; if (gradeCounts[g] !== undefined) gradeCounts[g]++; });
+  const counts = { 위험: 0, 경보: 0, 주의: 0, 안전: 0 };
+  districts.forEach(d => { const g = getDisp(d).grade; if (counts[g] !== undefined) counts[g]++; });
+  const vulnCount = counts["위험"] + counts["경보"];
 
-  if (loading) return (
-    <div className="flex flex-col gap-2">
-      {[...Array(4)].map((_, i) => (
-        <div key={i} className="h-20 rounded-xl animate-pulse" style={{ background: c.bgCard }} />
-      ))}
-    </div>
-  );
+  const visible = districts
+    .filter(d => cityFilter === "전체" || d.city === cityFilter)
+    .sort((a, b) => (GRADE_ORDER[getDisp(a).grade] ?? 4) - (GRADE_ORDER[getDisp(b).grade] ?? 4));
+
+  const GRADE_COLORS = {
+    안전: c.safe, 주의: c.caution, 경보: c.alert, 위험: c.danger,
+  };
+  const GRADE_SOFT = {
+    안전: c.safeSoft, 주의: c.cautionSoft, 경보: c.alertSoft, 위험: c.dangerSoft,
+  };
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* 헤더 */}
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold tracking-wide" style={{ color: c.textMuted }}>
-          침수 취약 지구
-          {horizon !== "current" && (
-            <span className="ml-1.5" style={{ color: c.pillText }}>· {HORIZON_LABEL[horizon]}</span>
-          )}
-        </span>
-        {alertCnt > 0 && (
-          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md danger-pulse"
-                style={{ background: "rgba(239,68,68,0.12)", color: "#f87171", border: "1px solid rgba(239,68,68,0.25)" }}>
-            ⚠ {alertCnt}곳
-          </span>
-        )}
-      </div>
-
-      {/* 등급 요약 */}
-      <div className="grid grid-cols-4 gap-1.5">
-        {["위험","경보","주의","안전"].map(g => {
-          const cfg    = GRADE_CFG[g];
-          const active = gradeFilter === g;
-          return (
-            <button key={g} onClick={() => setGrade(active ? "전체" : g)}
-              className="rounded-lg py-2 text-center transition-all"
-              style={{
-                background: active ? cfg.bg : c.bgCard,
-                border: `1px solid ${active ? cfg.border : c.border}`,
-              }}>
-              <div className="text-sm font-bold" style={{ color: active ? cfg.color : c.textMuted }}>
-                {gradeCounts[g]}
-              </div>
-              <div className="text-[10px] mt-0.5" style={{ color: active ? cfg.color : c.textFaint }}>{g}</div>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* 도시 필터 */}
-      <div className="flex gap-1 flex-wrap">
-        {cities.map(c_ => (
-          <button key={c_} onClick={() => setCity(c_)}
-            className="pill text-[11px]"
-            style={cityFilter === c_
-              ? { background: c.pillActive, color: c.pillText, borderColor: c.pillActiveBorder }
-              : { background: c.bgCard, color: c.textMuted, borderColor: c.border }}>
-            {c_}
+    <div className="anim-slidein">
+      {/* 내 위치 */}
+      <div style={{ padding: "16px 18px 10px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: c.text2 }}>내 위치 위험도</div>
+          <button onClick={onLocationClick}
+            style={{ display: "flex", alignItems: "center", gap: 5, height: 30, padding: "0 11px",
+                     border: `1px solid ${c.primary}`, color: c.primary, background: c.primarySoft,
+                     borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+            ◎ 내 위치
           </button>
-        ))}
+        </div>
+        <button onClick={onLocationClick}
+          style={{ width: "100%", textAlign: "left", border: `1px dashed ${c.border}`,
+                   background: c.surface2, borderRadius: 13, padding: 18,
+                   display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+                   cursor: "pointer", fontFamily: "inherit" }}>
+          <div style={{ width: 42, height: 42, borderRadius: "50%", background: c.primarySoft,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        color: c.primary, fontSize: 18 }}>◎</div>
+          <div style={{ textAlign: "center", fontSize: 13, color: c.text2, lineHeight: 1.5, fontWeight: 500 }}>
+            버튼을 눌러 현재 위치의<br />침수 위험도를 확인하세요
+          </div>
+        </button>
       </div>
 
-      {/* 리스트 */}
-      <div className="flex flex-col gap-1.5 overflow-y-auto" style={{ maxHeight: "calc(100vh - 500px)" }}>
+      {/* 취약 지구 목록 */}
+      <div style={{ padding: "12px 18px 6px", borderTop: `1px solid ${c.border2}`, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: c.text2 }}>침수 취약 지구</div>
+          {vulnCount > 0 && (
+            <div style={{ fontSize: 12, fontWeight: 700, color: c.danger, background: c.dangerSoft,
+                          padding: "3px 9px", borderRadius: 20 }}>
+              ⚠ {vulnCount}곳
+            </div>
+          )}
+        </div>
+
+        {/* 등급 카드 */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 12 }}>
+          {["위험","경보","주의","안전"].map(g => (
+            <div key={g} style={{ border: `1px solid ${c.border}`, borderRadius: 10,
+                                  padding: "10px 8px", textAlign: "center" }}>
+              <div className="mono" style={{ fontSize: 20, fontWeight: 700, color: GRADE_COLORS[g] }}>
+                {counts[g]}
+              </div>
+              <div style={{ fontSize: 11, color: c.text3, marginTop: 1, fontWeight: 600 }}>{g}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* 도시 필터 */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 4 }}>
+          {cities.map(city => (
+            <button key={city} onClick={() => setCity(city)}
+              style={{ height: 28, padding: "0 12px", borderRadius: 20, fontSize: 12,
+                       fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                       border: `1px solid ${cityFilter === city ? c.primary : c.border}`,
+                       background: cityFilter === city ? c.primary : c.surface,
+                       color: cityFilter === city ? "#fff" : c.text2 }}>
+              {city}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 지구 목록 */}
+      <div style={{ padding: "8px 18px 18px", display: "flex", flexDirection: "column", gap: 9 }}>
         {visible.length === 0 && (
-          <div className="text-center py-8 text-xs" style={{ color: c.textFaint }}>
-            해당 조건의 지구가 없습니다
+          <div style={{ padding: "32px 12px", textAlign: "center", color: c.text3, fontSize: 13 }}>
+            해당 지역의 모니터링 지구가 없습니다
           </div>
         )}
         {visible.map(d => {
-          const disp   = getDisp(d);
-          const cfg    = GRADE_CFG[disp.grade] ?? GRADE_CFG["안전"];
-          const overMm = Math.round((disp.rainfall - d.drainage_capacity) * 10) / 10;
-          const isOver = disp.rainfall > d.drainage_capacity;
-          const isHL   = highlightId === d.id;
+          const disp  = getDisp(d);
+          const gs    = gradeStyle(c, disp.grade);
+          const rain  = disp.rainfall;
+          const cap   = d.drainage_capacity;
+          const pct   = Math.min(rain / Math.max(cap, 1) * 100, 100);
+          const over  = rain - cap;
 
           return (
-            <div key={d.id}
-              className="rounded-xl px-3 py-2.5 transition-all"
-              style={{
-                background: isHL ? cfg.bg : c.bgCard,
-                border: `1px solid ${isHL ? cfg.border : c.border}`,
-              }}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: cfg.color }} />
-                  <span className="text-sm font-semibold truncate" style={{ color: c.textPrimary }}>{d.name}</span>
-                  <span className="text-[11px] shrink-0" style={{ color: c.textFaint }}>{d.gu}</span>
+            <button key={d.id} onClick={() => onDistrictClick(d)}
+              style={{ textAlign: "left", border: `1px solid ${c.border}`, background: c.surface,
+                       borderRadius: 13, padding: 13, cursor: "pointer", fontFamily: "inherit",
+                       display: "flex", flexDirection: "column", gap: 8, boxShadow: c.elev }}>
+
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: gs.color }} />
+                  <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-.01em" }}>{d.name}</span>
+                  <span style={{ fontSize: 12, color: c.text3, fontWeight: 500 }}>{d.gu}</span>
                 </div>
-                <GradePill grade={disp.grade} />
+                <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 6,
+                               flexShrink: 0, color: gs.color, background: gs.bg }}>
+                  {disp.grade}
+                </span>
               </div>
 
-              <RainBar rainfall={disp.rainfall} capacity={d.drainage_capacity} grade={disp.grade} />
+              {/* 게이지 바 */}
+              <div style={{ height: 6, borderRadius: 4, background: c.border2, overflow: "hidden" }}>
+                <div className="bar-fill"
+                     style={{ height: "100%", borderRadius: 4, width: `${pct}%`, background: gs.color }} />
+              </div>
 
-              <div className="flex items-center justify-between mt-1.5 text-[11px]">
-                <span style={{ color: c.textMuted }}>
-                  {disp.rainfall}mm <span style={{ color: c.textFaint }}>/</span> {d.drainage_capacity}mm
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span className="mono" style={{ fontSize: 12.5, color: c.text2, fontWeight: 500 }}>
+                  {rain}mm / {cap}mm
                 </span>
-                <span style={{ color: isOver ? "#f87171" : "#4ade80", fontWeight: 600 }}>
-                  {isOver ? `+${overMm}mm 초과` : `여유 ${Math.abs(overMm)}mm`}
+                <span style={{ fontSize: 12.5, fontWeight: 700,
+                               color: over >= 0 ? c.danger : c.safe }}>
+                  {over >= 0 ? `+${over.toFixed(1)}mm 초과` : `여유 ${(-over).toFixed(1)}mm`}
                 </span>
               </div>
 
               {d.flood_history >= 0.8 && (
-                <div className="mt-1.5 text-[10px] flex items-center gap-1" style={{ color: "#f97316" }}>
-                  <span>●</span><span>과거 침수 이력 높음</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: c.alert, fontWeight: 600 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: c.alert }} />
+                  과거 침수 이력 높음
                 </div>
               )}
-            </div>
+            </button>
           );
         })}
       </div>
