@@ -18,6 +18,7 @@ from spatial.districts import (
     apply_ml_scores,
     build_geojson_for_horizon,
 )
+import database as db
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +52,77 @@ async def collect_and_update() -> None:
         except Exception:
             logger.warning("ML 추론 스킵 — rule-based 결과 유지", exc_info=True)
 
+        # 3단계: DB 로그 저장 (비동기로 오류가 나도 서비스에 영향 없음)
+        try:
+            _save_to_db(enriched)
+        except Exception:
+            logger.warning("DB 저장 실패 (서비스 영향 없음)", exc_info=True)
+
     except Exception:
         logger.exception("데이터 갱신 실패")
+
+
+def _save_to_db(enriched: list) -> None:
+    """enriched 지구 목록을 DB 테이블에 기록."""
+    horizons = ("current", "1h", "3h")
+    rainfall_records = []
+    risk_records = []
+
+    for d in enriched:
+        did = d["id"]
+
+        # current 강수량 로그
+        rainfall_records.append({
+            "district_id":   did,
+            "horizon":       "current",
+            "rainfall_mmhr": d.get("rainfall_1h", 0),
+            "source":        "kma" if d.get("_kma_real") else "dummy",
+        })
+
+        # horizon별 위험도 로그
+        for h in horizons:
+            if h == "current":
+                risk_records.append({
+                    "district_id": did,
+                    "horizon":     h,
+                    "rainfall_1h": d.get("rainfall_1h"),
+                    "f_rainfall":  d.get("f_rainfall"),
+                    "f_hand":      d.get("f_hand"),
+                    "f_imperv":    d.get("f_imperv"),
+                    "f_history":   d.get("f_history"),
+                    "rule_score":  d.get("rule_score"),
+                    "ml_score":    d.get("ml_score"),
+                    "risk_score":  d.get("risk_score", 0),
+                    "grade":       d.get("grade", "안전"),
+                })
+            else:
+                fc = d.get("forecast", {}).get(h, {})
+                if fc:
+                    risk_records.append({
+                        "district_id": did,
+                        "horizon":     h,
+                        "rainfall_1h": fc.get("rainfall"),
+                        "f_rainfall":  None,
+                        "f_hand":      None,
+                        "f_imperv":    None,
+                        "f_history":   None,
+                        "rule_score":  None,
+                        "ml_score":    None,
+                        "risk_score":  fc.get("risk_score", 0),
+                        "grade":       fc.get("grade", "안전"),
+                    })
+
+        # 경보 발령 관리
+        db.check_and_insert_alert(
+            did,
+            d.get("grade", "안전"),
+            d.get("rainfall_1h", 0),
+            d.get("risk_score", 0),
+        )
+
+    db.insert_rainfall_logs(rainfall_records)
+    db.insert_risk_score_logs(risk_records)
+    logger.info(f"DB 저장 완료 — rainfall {len(rainfall_records)}건, risk {len(risk_records)}건")
 
 
 def start_scheduler() -> None:

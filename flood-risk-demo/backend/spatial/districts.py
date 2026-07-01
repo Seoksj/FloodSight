@@ -18,9 +18,10 @@ from typing import List, Dict, Any, Tuple
 
 from risk_engine import compute_urban_flood_risk, score_to_grade, generate_urban_reason
 
-# 실제 행정동 경계 (fetch_boundaries.py 로 생성)
+# 실제 행정동 경계 (hangjeongdong_서울특별시.geojson 에서 변환)
 _BOUNDARIES_PATH = os.path.join(os.path.dirname(__file__), "district_boundaries.json")
-_BOUNDARIES: Dict[str, list] = {}
+_BOUNDARIES: Dict[str, Dict] = {}   # district_id → {geometry, dong, gu, adm_cd}
+
 
 def _load_boundaries():
     global _BOUNDARIES
@@ -30,6 +31,7 @@ def _load_boundaries():
                 _BOUNDARIES = json.load(f)
         except Exception:
             _BOUNDARIES = {}
+
 
 _load_boundaries()
 
@@ -174,11 +176,11 @@ def _make_polygon(lat: float, lon: float, radius_deg: float = 0.02, n: int = 16)
     return [coords]
 
 
-def _get_polygon(district_id: str, lat: float, lon: float) -> list:
-    """실제 행정동 경계 반환. 없으면 원형 근사."""
+def _get_geometry(district_id: str, lat: float, lon: float) -> Dict:
+    """실제 행정동 GeoJSON geometry 반환. 없으면 원형 근사 Polygon."""
     if district_id in _BOUNDARIES:
-        return _BOUNDARIES[district_id]
-    return _make_polygon(lat, lon)
+        return _BOUNDARIES[district_id]["geometry"]
+    return {"type": "Polygon", "coordinates": _make_polygon(lat, lon)}
 
 
 def _current_regional_rainfall() -> Dict[str, float]:
@@ -313,10 +315,7 @@ def _build_geojson(districts: List[Dict], horizon: str = "current") -> Dict:
 
         features.append({
             "type": "Feature",
-            "geometry": {
-                "type": "Polygon",
-                "coordinates": _get_polygon(d["id"], d["lat"], d["lon"]),
-            },
+            "geometry": _get_geometry(d["id"], d["lat"], d["lon"]),
             "properties": {
                 "id":              d["id"],
                 "name":            d["name"],

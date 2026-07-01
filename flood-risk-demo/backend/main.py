@@ -17,8 +17,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from cache import cache
 from scheduler import start_scheduler, stop_scheduler
-from spatial.districts import find_nearest, build_urban_risk_data
+from spatial.districts import find_nearest, build_urban_risk_data, DISTRICTS
 from risk_engine import compute_urban_flood_risk, score_to_grade, generate_urban_reason
+import database as db
 
 logging.basicConfig(
     level=logging.INFO,
@@ -29,6 +30,10 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # DB 초기화 → district 마스터 동기화 → 샘플 backtest 데이터 삽입
+    db.init_db()
+    db.upsert_districts(DISTRICTS)
+    db.seed_backtest_event()
     start_scheduler()
     yield
     stop_scheduler()
@@ -151,3 +156,61 @@ async def predict_endpoint(
     except Exception as e:
         logger.exception("ML 추론 실패")
         raise HTTPException(500, str(e))
+
+
+# ── DB 조회 API ──────────────────────────────────────
+
+@app.get("/db/districts")
+async def db_districts():
+    """district 마스터 테이블 전체 조회."""
+    return {"districts": db.get_all_districts()}
+
+
+@app.get("/db/risk/history/{district_id}")
+async def db_risk_history(
+    district_id: str,
+    horizon: str = Query("current"),
+    limit:   int = Query(48, ge=1, le=200),
+):
+    """특정 지구의 위험도 시계열 이력 조회."""
+    return {"district_id": district_id, "horizon": horizon,
+            "history": db.get_risk_history(district_id, horizon, limit)}
+
+
+@app.get("/db/risk/summary")
+async def db_risk_summary():
+    """각 지구 최신 위험도 요약 (current 기준)."""
+    return {"summary": db.get_latest_risk_summary()}
+
+
+@app.get("/db/rainfall/history/{district_id}")
+async def db_rainfall_history(
+    district_id: str,
+    limit: int = Query(72, ge=1, le=200),
+):
+    """특정 지구의 강수량 수집 이력."""
+    return {"district_id": district_id,
+            "history": db.get_rainfall_history(district_id, limit)}
+
+
+@app.get("/db/alerts")
+async def db_alerts(active_only: bool = Query(True)):
+    """경보 발령 이력 조회."""
+    if active_only:
+        return {"alerts": db.get_active_alerts()}
+    return {"alerts": db.get_alert_history()}
+
+
+@app.get("/db/backtest")
+async def db_backtest_list():
+    """백테스트 이벤트 목록."""
+    return {"events": db.get_backtest_events()}
+
+
+@app.get("/db/backtest/{event_id}")
+async def db_backtest_detail(event_id: int):
+    """백테스트 이벤트 상세 (실측 강수 + 침수 여부)."""
+    result = db.get_backtest_detail(event_id)
+    if not result:
+        raise HTTPException(404, "이벤트를 찾을 수 없습니다.")
+    return result
