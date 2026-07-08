@@ -21,13 +21,13 @@ function TileLayerSwitch({ theme }) {
   useEffect(() => {
     if (!map) return;
     if (layerRef.current) layerRef.current.remove();
-    const url = theme === "dark"
-      ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-      : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+    const style = theme === "dark" ? "dark-v11" : "streets-v12";
+    const url = `https://api.mapbox.com/styles/v1/mapbox/${style}/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`;
     layerRef.current = L.tileLayer(url, {
-      attribution: '© <a href="https://www.openstreetmap.org/">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
+      attribution: '© <a href="https://www.mapbox.com/">Mapbox</a> © <a href="https://www.openstreetmap.org/">OpenStreetMap</a>',
+      tileSize: 512,
+      zoomOffset: -1,
       maxZoom: 22,
-      subdomains: "abcd",
     }).addTo(map);
     return () => layerRef.current?.remove();
   }, [theme, map]);
