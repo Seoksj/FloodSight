@@ -44,6 +44,19 @@ def compute_urban_flood_risk(
     )
 
 
+def water_level_bonus(wl: float, alert_level: float) -> float:
+    """
+    수위/경보수위 비율 → 위험도 보정값 [0, 0.10].
+    비율 50% 미만: 0  / 50~100%: 선형 증가 → 최대 0.10
+    """
+    if alert_level <= 0:
+        return 0.0
+    ratio = wl / alert_level
+    if ratio < 0.5:
+        return 0.0
+    return round(min((ratio - 0.5) * 0.20, 0.10), 4)
+
+
 def score_to_grade(score: float, rainfall_1h: float = None) -> Dict[str, Any]:
     if score < 0.45:
         grade = "안전"

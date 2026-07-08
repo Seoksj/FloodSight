@@ -876,16 +876,34 @@ def _forecast_rainfall(meta: Dict, current_rain: float) -> Dict:
     }
 
 
+def _nearest_station_bonus(lat: float, lon: float, stations: List[Dict]) -> float:
+    """가장 가까운 신뢰 수위 관측소의 수위 보정값 반환."""
+    from risk_engine import water_level_bonus
+    best_bonus, best_dist = 0.0, float("inf")
+    for s in stations:
+        if not s.get("use_for_risk", True):
+            continue
+        if s.get("_source") == "missing":
+            continue
+        dist = math.hypot(s["lat"] - lat, s["lon"] - lon)
+        if dist < best_dist:
+            best_dist = dist
+            best_bonus = water_level_bonus(s["water_level"], s["alert_level"])
+    return best_bonus
+
+
 def build_urban_risk_data(
     kma_rain: Dict = None,
     kma_by_city: Dict = None,
     kma_grid_data: Dict = None,
+    hrfco_stations: List[Dict] = None,
 ) -> Tuple[List[Dict], Dict]:
     """
     전체 지구 위험도 계산 → (enriched_list, current GeoJSON) 반환.
-    kma_grid_data: {(nx, ny): {"current": float, "1h": float, "3h": float}}  격자별 KMA 실황 (우선)
-    kma_by_city:   {"서울": {...}, "인천": {...}}  도시별 KMA 실황 (하위호환)
-    kma_rain:      단일 dict (하위호환)
+    kma_grid_data:   {(nx, ny): {"current": float, "1h": float, "3h": float}}  격자별 KMA 실황 (우선)
+    hrfco_stations:  HRFCO 수위 관측소 목록 → 가장 가까운 관측소 수위로 위험도 보정
+    kma_by_city:     {"서울": {...}, "인천": {...}}  도시별 KMA 실황 (하위호환)
+    kma_rain:        단일 dict (하위호환)
     """
     # 격자 기반 per-district KMA 데이터 미리 계산
     district_kma: Dict[str, Dict] = {}
@@ -930,7 +948,10 @@ def build_urban_risk_data(
             topo_depression    = meta["topo_depression"],
             flood_history      = meta["flood_history"],
         )
-        grade_info = score_to_grade(rule_score, rainfall_1h)
+        # 수위 보정: 가까운 HRFCO 관측소 수위 반영 (최대 +0.10)
+        wl_bonus = _nearest_station_bonus(meta["lat"], meta["lon"], hrfco_stations or [])
+        final_score = min(round(rule_score + wl_bonus, 4), 1.0)
+        grade_info = score_to_grade(final_score, rainfall_1h)
         reason     = generate_urban_reason(meta, rainfall_1h, grade_info["grade"])
 
         if kma:
@@ -968,8 +989,9 @@ def build_urban_risk_data(
             "f_imperv":          round(meta["impervious_ratio"], 4),
             "f_history":         round(meta["flood_history"], 4),
             "rule_score":        rule_score,
+            "wl_bonus":          wl_bonus,
             "ml_score":          None,
-            "risk_score":        rule_score,
+            "risk_score":        final_score,
             "grade":             grade_info["grade"],
             "color":             grade_info["color"],
             "reason":            reason,

@@ -38,18 +38,31 @@ async def collect_and_update() -> None:
         cache.update_all_horizons(enriched, geojson_map)
         logger.info(f"rule-based(더미) 완료 — {len(enriched)}개 지구")
 
-        # 2단계: 동별 격자 강수량 조회 (고유 격자만 병렬 배치) 후 캐시 재갱신
+        # 2단계: KMA 격자 강수량 + HRFCO 수위 병렬 조회 후 캐시 재갱신
         try:
             from clients.kma import fetch_grid_rainfall_batch
+            from clients.hrfco import fetch_stations
             from spatial.districts import DISTRICTS as _DISTRICTS
-            kma_grid_data = await fetch_grid_rainfall_batch(_DISTRICTS)
-            if kma_grid_data:
-                enriched, geojson_current = build_urban_risk_data(kma_grid_data=kma_grid_data)
+            kma_grid_data, hrfco_stations = await asyncio.gather(
+                fetch_grid_rainfall_batch(_DISTRICTS),
+                fetch_stations(),
+                return_exceptions=True,
+            )
+            if isinstance(kma_grid_data, Exception):
+                kma_grid_data = None
+            if isinstance(hrfco_stations, Exception):
+                hrfco_stations = []
+
+            if kma_grid_data or hrfco_stations:
+                enriched, geojson_current = build_urban_risk_data(
+                    kma_grid_data=kma_grid_data or None,
+                    hrfco_stations=hrfco_stations or [],
+                )
                 geojson_map = _build_all_geojsons(enriched)
                 cache.update_all_horizons(enriched, geojson_map)
-                logger.info(f"KMA 격자 실황 반영 완료: {len(kma_grid_data)}개 격자")
+                logger.info(f"KMA 격자 {len(kma_grid_data or {})}개 / HRFCO 수위 {len(hrfco_stations or [])}개 반영 완료")
         except Exception:
-            logger.warning("KMA 격자 조회 실패 → 더미 강수 유지", exc_info=True)
+            logger.warning("KMA/HRFCO 조회 실패 → 더미 유지", exc_info=True)
 
         # ML 추론: 학습된 체크포인트 없으므로 생략 (rule-based 전용)
 

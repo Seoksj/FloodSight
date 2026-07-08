@@ -22,15 +22,16 @@ API_KEY = os.getenv("HRFCO_API_KEY", "")
 BASE_URL = f"https://api.hrfco.go.kr/{API_KEY}"
 
 # 서울·인천 권역 주요 수위 관측소 (표준수문DB API 실측 ID)
+# 안양천(1017690)은 EL.m datum으로 alert_level과 단위 불일치 → 위험도 계산 제외
 _STATION_META: List[Dict[str, Any]] = [
-    {"station_id": "1018683", "name": "한강대교",   "lat": 37.517, "lon": 126.997, "alert_level": 6.20},
-    {"station_id": "1018661", "name": "팔당",        "lat": 37.530, "lon": 127.466, "alert_level": 5.50},
-    {"station_id": "1018650", "name": "한강(행주)",  "lat": 37.613, "lon": 126.821, "alert_level": 5.00},
-    {"station_id": "1018640", "name": "한강(청담)",  "lat": 37.519, "lon": 127.063, "alert_level": 6.00},
-    {"station_id": "1017690", "name": "안양천",      "lat": 37.465, "lon": 126.882, "alert_level": 4.00},
-    {"station_id": "1021670", "name": "중랑천",      "lat": 37.562, "lon": 127.088, "alert_level": 4.50},
-    {"station_id": "1021650", "name": "중랑천(상)",  "lat": 37.618, "lon": 127.081, "alert_level": 3.50},
-    {"station_id": "1019651", "name": "북한강",      "lat": 37.753, "lon": 127.468, "alert_level": 4.80},
+    {"station_id": "1018683", "name": "한강대교",  "lat": 37.517, "lon": 126.997, "alert_level": 6.20, "use_for_risk": True},
+    {"station_id": "1018661", "name": "팔당",      "lat": 37.530, "lon": 127.466, "alert_level": 5.50, "use_for_risk": True},
+    {"station_id": "1018650", "name": "한강(행주)","lat": 37.613, "lon": 126.821, "alert_level": 5.00, "use_for_risk": True},
+    {"station_id": "1018640", "name": "한강(청담)","lat": 37.519, "lon": 127.063, "alert_level": 6.00, "use_for_risk": True},
+    {"station_id": "1017690", "name": "안양천",    "lat": 37.465, "lon": 126.882, "alert_level": 4.00, "use_for_risk": False},
+    {"station_id": "1021670", "name": "중랑천",    "lat": 37.562, "lon": 127.088, "alert_level": 4.50, "use_for_risk": True},
+    {"station_id": "1021650", "name": "중랑천(상)","lat": 37.618, "lon": 127.081, "alert_level": 3.50, "use_for_risk": True},
+    {"station_id": "1019651", "name": "북한강",    "lat": 37.753, "lon": 127.468, "alert_level": 4.80, "use_for_risk": True},
 ]
 
 
@@ -39,13 +40,15 @@ def _random_station(meta: Dict) -> Dict:
     rng = random.Random()
     wl = round(rng.uniform(0.5, meta["alert_level"] * 1.1), 2)
     return {
-        "station_id":  meta["station_id"],
-        "name":        meta["name"],
-        "lat":         meta["lat"],
-        "lon":         meta["lon"],
-        "water_level": wl,
-        "alert_level": meta["alert_level"],
-        "rainfall_1h": round(rng.uniform(0, 25), 1),
+        "station_id":   meta["station_id"],
+        "name":         meta["name"],
+        "lat":          meta["lat"],
+        "lon":          meta["lon"],
+        "water_level":  wl,
+        "alert_level":  meta["alert_level"],
+        "use_for_risk": meta.get("use_for_risk", True),
+        "rainfall_1h":  round(rng.uniform(0, 25), 1),
+        "_source":      "dummy",
     }
 
 
@@ -104,14 +107,15 @@ async def fetch_stations() -> List[Dict]:
         for meta in _STATION_META:
             sid = meta["station_id"]
             row = {
-                "station_id":  sid,
-                "name":        meta["name"],
-                "lat":         meta["lat"],
-                "lon":         meta["lon"],
-                "alert_level": meta["alert_level"],
-                "water_level": wl_data.get(sid, 0.0),
-                "rainfall_1h": rf_data.get(sid, {}).get("rainfall_1h", 0.0),
-                "_source":     "hrfco" if sid in wl_data else "missing",
+                "station_id":   sid,
+                "name":         meta["name"],
+                "lat":          meta["lat"],
+                "lon":          meta["lon"],
+                "alert_level":  meta["alert_level"],
+                "use_for_risk": meta.get("use_for_risk", True),
+                "water_level":  wl_data.get(sid, 0.0),
+                "rainfall_1h":  rf_data.get(sid, {}).get("rainfall_1h", 0.0),
+                "_source":      "hrfco" if sid in wl_data else "missing",
             }
             stations.append(row)
         return stations
