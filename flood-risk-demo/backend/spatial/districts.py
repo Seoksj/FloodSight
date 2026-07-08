@@ -1085,4 +1085,4 @@ def find_nearest(lat: float, lon: float) -> Dict:
 
 
 def _opacity(grade: str) -> float:
-    return {"안전": 0.30, "주의": 0.45, "경보": 0.60, "위험": 0.75}.get(grade, 0.4)
+    return {"안전": 0.42, "주의": 0.58, "경보": 0.72, "위험": 0.88}.get(grade, 0.5)

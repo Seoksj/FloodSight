@@ -83,7 +83,7 @@ function DistrictLayer({ geojson, onSelect }) {
     const layer = L.geoJSON(geojson, {
       style: f => ({
         fillColor:   f.properties.color,
-        fillOpacity: f.properties.opacity ?? 0.42,
+        fillOpacity: f.properties.opacity ?? 0.50,
         color:       f.properties.color,
         weight:      1.5,
         opacity:     0.55,
