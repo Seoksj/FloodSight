@@ -28,6 +28,7 @@ jobs:
         working-directory: flood-risk-demo/frontend
         env:
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_MAPBOX_TOKEN: ${{ secrets.VITE_MAPBOX_TOKEN }}
         run: npm run build
 
       - name: Deploy to gh-pages

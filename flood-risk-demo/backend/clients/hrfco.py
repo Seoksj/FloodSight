@@ -21,18 +21,16 @@ logger = logging.getLogger(__name__)
 API_KEY = os.getenv("HRFCO_API_KEY", "")
 BASE_URL = f"https://api.hrfco.go.kr/{API_KEY}"
 
-# 전국 주요 관측소 기준값 (실제 HRFCO 데이터 기반)
+# 서울·인천 권역 주요 수위 관측소 (표준수문DB API 실측 ID)
 _STATION_META: List[Dict[str, Any]] = [
-    {"station_id": "1018683", "name": "한강대교",  "lat": 37.517, "lon": 126.997, "alert_level": 6.2,  "hand": 2.5},
-    {"station_id": "1018660", "name": "팔당",      "lat": 37.530, "lon": 127.466, "alert_level": 5.5,  "hand": 8.0},
-    {"station_id": "1018670", "name": "여주",      "lat": 37.297, "lon": 127.638, "alert_level": 7.0,  "hand": 4.5},
-    {"station_id": "3009700", "name": "충주댐",    "lat": 37.011, "lon": 127.899, "alert_level": 145.0,"hand": 18.0},
-    {"station_id": "1019660", "name": "북한강",    "lat": 37.753, "lon": 127.468, "alert_level": 4.8,  "hand": 5.2},
-    {"station_id": "1017690", "name": "안양천",    "lat": 37.465, "lon": 126.882, "alert_level": 4.0,  "hand": 1.8},
-    {"station_id": "1020690", "name": "중랑천",    "lat": 37.562, "lon": 127.088, "alert_level": 4.5,  "hand": 2.1},
-    {"station_id": "2001680", "name": "낙동강(밀양)","lat": 35.497,"lon": 128.745,"alert_level": 8.0,  "hand": 6.0},
-    {"station_id": "3001640", "name": "금강(공주)", "lat": 36.457, "lon": 127.126,"alert_level": 7.5,  "hand": 5.5},
-    {"station_id": "4001660", "name": "영산강(나주)","lat": 35.017,"lon": 126.718,"alert_level": 6.0,  "hand": 3.8},
+    {"station_id": "1018683", "name": "한강대교",   "lat": 37.517, "lon": 126.997, "alert_level": 6.20},
+    {"station_id": "1018661", "name": "팔당",        "lat": 37.530, "lon": 127.466, "alert_level": 5.50},
+    {"station_id": "1018650", "name": "한강(행주)",  "lat": 37.613, "lon": 126.821, "alert_level": 5.00},
+    {"station_id": "1018640", "name": "한강(청담)",  "lat": 37.519, "lon": 127.063, "alert_level": 6.00},
+    {"station_id": "1017690", "name": "안양천",      "lat": 37.465, "lon": 126.882, "alert_level": 4.00},
+    {"station_id": "1021670", "name": "중랑천",      "lat": 37.562, "lon": 127.088, "alert_level": 4.50},
+    {"station_id": "1021650", "name": "중랑천(상)",  "lat": 37.618, "lon": 127.081, "alert_level": 3.50},
+    {"station_id": "1019651", "name": "북한강",      "lat": 37.753, "lon": 127.468, "alert_level": 4.80},
 ]
 
 
@@ -41,15 +39,13 @@ def _random_station(meta: Dict) -> Dict:
     rng = random.Random()
     wl = round(rng.uniform(0.5, meta["alert_level"] * 1.1), 2)
     return {
-        "station_id":   meta["station_id"],
-        "name":         meta["name"],
-        "lat":          meta["lat"],
-        "lon":          meta["lon"],
-        "water_level":  wl,
-        "alert_level":  meta["alert_level"],
-        "rainfall_1h":  round(rng.uniform(0, 25), 1),
-        "rainfall_24h": round(rng.uniform(0, 80), 1),
-        "hand":         meta["hand"],
+        "station_id":  meta["station_id"],
+        "name":        meta["name"],
+        "lat":         meta["lat"],
+        "lon":         meta["lon"],
+        "water_level": wl,
+        "alert_level": meta["alert_level"],
+        "rainfall_1h": round(rng.uniform(0, 25), 1),
     }
 
 
@@ -61,9 +57,9 @@ def _parse_waterlevel_xml(xml_bytes: bytes) -> Dict[str, float]:
     """수위 XML → {station_id: water_level}."""
     root = ET.fromstring(xml_bytes)
     result = {}
-    for item in root.iter("item"):
+    for item in root.iter("Waterlevel"):
         sid = (item.findtext("wlobscd") or "").strip()
-        wl  = item.findtext("wl") or item.findtext("obsval")
+        wl  = item.findtext("wl")
         if sid and wl:
             try:
                 result[sid] = float(wl)
@@ -73,16 +69,15 @@ def _parse_waterlevel_xml(xml_bytes: bytes) -> Dict[str, float]:
 
 
 def _parse_rainfall_xml(xml_bytes: bytes) -> Dict[str, Dict]:
-    """강수량 XML → {station_id: {1h, 24h}}."""
+    """강수량 XML → {station_id: {1h}}. rfobscd는 8자리."""
     root = ET.fromstring(xml_bytes)
     result = {}
-    for item in root.iter("item"):
+    for item in root.iter("Rainfall"):
         sid = (item.findtext("rfobscd") or "").strip()
-        r1h  = item.findtext("rf") or item.findtext("rf1h") or "0"
-        r24h = item.findtext("rf24") or item.findtext("rf24h") or "0"
+        rf  = item.findtext("rf") or "0"
         if sid:
             try:
-                result[sid] = {"rainfall_1h": float(r1h), "rainfall_24h": float(r24h)}
+                result[sid] = {"rainfall_1h": float(rf)}
             except ValueError:
                 pass
     return result
@@ -109,15 +104,14 @@ async def fetch_stations() -> List[Dict]:
         for meta in _STATION_META:
             sid = meta["station_id"]
             row = {
-                "station_id":   sid,
-                "name":         meta["name"],
-                "lat":          meta["lat"],
-                "lon":          meta["lon"],
-                "alert_level":  meta["alert_level"],
-                "hand":         meta["hand"],
-                "water_level":  wl_data.get(sid, 0.0),
-                "rainfall_1h":  rf_data.get(sid, {}).get("rainfall_1h", 0.0),
-                "rainfall_24h": rf_data.get(sid, {}).get("rainfall_24h", 0.0),
+                "station_id":  sid,
+                "name":        meta["name"],
+                "lat":         meta["lat"],
+                "lon":         meta["lon"],
+                "alert_level": meta["alert_level"],
+                "water_level": wl_data.get(sid, 0.0),
+                "rainfall_1h": rf_data.get(sid, {}).get("rainfall_1h", 0.0),
+                "_source":     "hrfco" if sid in wl_data else "missing",
             }
             stations.append(row)
         return stations

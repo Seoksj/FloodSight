@@ -2,10 +2,10 @@
 도시 침수 위험도 산출 엔진 (Urban Flood Risk Engine).
 
 위험 등급:
-  안전 score < 0.30 : #4CAF50
-  주의 score < 0.50 : #FFC107
-  경보 score < 0.70 : #FF9800
-  위험 score >= 0.70 : #F44336
+  안전 score < 0.45 : #4CAF50
+  주의 score < 0.60 : #FFC107
+  경보 score < 0.75 : #FF9800
+  위험 score >= 0.75 : #F44336
 """
 
 from typing import Dict, Any
@@ -44,15 +44,18 @@ def compute_urban_flood_risk(
     )
 
 
-def score_to_grade(score: float) -> Dict[str, Any]:
-    if score < 0.30:
+def score_to_grade(score: float, rainfall_1h: float = None) -> Dict[str, Any]:
+    if score < 0.45:
         grade = "안전"
-    elif score < 0.50:
+    elif score < 0.60:
         grade = "주의"
-    elif score < 0.70:
+    elif score < 0.75:
         grade = "경보"
     else:
         grade = "위험"
+    # 강수 없으면 최대 주의 — 취약성은 높아도 현재 위험 아님
+    if rainfall_1h is not None and rainfall_1h < 5.0 and grade in ("경보", "위험"):
+        grade = "주의"
     return {"grade": grade, "score": score, **GRADE_CONFIG[grade]}
 
 
@@ -78,9 +81,9 @@ def generate_urban_reason(meta: Dict, rainfall_1h: float, grade: str) -> str:
     imperv_label = "매우 높음" if imperv > 0.75 else "높음" if imperv > 0.6 else "보통"
     parts.append(f"불투수율 {imperv*100:.0f}%({imperv_label}).")
 
-    if history >= 0.8:
+    if history >= 0.35:
         parts.append("과거 침수 이력 매우 많음.")
-    elif history >= 0.6:
+    elif history >= 0.15:
         parts.append("과거 침수 이력 있음.")
 
     grade_msgs = {

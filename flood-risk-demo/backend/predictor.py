@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 _model: Optional[Any] = None
 _model_loaded = False   # 실제 체크포인트로 로드됐는지
+_tokenizer: Optional[Any] = None
 
 H = W = 64   # 추론용 공간 해상도 (full 256보다 8x 빠름)
 T = 4        # SAR 시간 스텝
@@ -142,21 +143,35 @@ def _precip_text(name: str, r_cur: float, r_1h: float, r_3h: float) -> str:
     )
 
 
-def _tokenize(text: str, max_len: int = 64):
+def _get_tokenizer():
+    global _tokenizer
+    if _tokenizer is not None:
+        return _tokenizer
     try:
         from transformers import AutoTokenizer
-        tok = AutoTokenizer.from_pretrained("klue/roberta-base")
-        enc = tok(text, max_length=max_len, padding="max_length",
-                  truncation=True, return_tensors="pt")
-        return enc["input_ids"].squeeze(0), enc["attention_mask"].squeeze(0)
-    except Exception:
-        ids  = [ord(c) % 1000 for c in text[:max_len]]
-        ids += [0] * (max_len - len(ids))
-        mask = [1 if i < len(text) else 0 for i in range(max_len)]
-        return (
-            torch.tensor(ids, dtype=torch.long),
-            torch.tensor(mask, dtype=torch.long),
-        )
+        _tokenizer = AutoTokenizer.from_pretrained("klue/roberta-base")
+        logger.info("토크나이저 로드 완료 (캐시됨)")
+    except Exception as e:
+        logger.warning(f"토크나이저 로드 실패: {e}")
+    return _tokenizer
+
+
+def _tokenize(text: str, max_len: int = 64):
+    tok = _get_tokenizer()
+    if tok is not None:
+        try:
+            enc = tok(text, max_length=max_len, padding="max_length",
+                      truncation=True, return_tensors="pt")
+            return enc["input_ids"].squeeze(0), enc["attention_mask"].squeeze(0)
+        except Exception:
+            pass
+    ids  = [ord(c) % 1000 for c in text[:max_len]]
+    ids += [0] * (max_len - len(ids))
+    mask = [1 if i < len(text) else 0 for i in range(max_len)]
+    return (
+        torch.tensor(ids, dtype=torch.long),
+        torch.tensor(mask, dtype=torch.long),
+    )
 
 
 # ──────────────────────────────────────────────────────────────

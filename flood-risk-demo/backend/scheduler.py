@@ -32,25 +32,26 @@ def _build_all_geojsons(enriched) -> dict:
 async def collect_and_update() -> None:
     logger.info("데이터 갱신 시작...")
     try:
-        # 1단계: rule-based 즉시 계산 → 캐시에 먼저 올려 API 응답 가능하게 함
-        enriched, geojson_current = build_urban_risk_data()
+        # 1단계: 더미 강수로 즉시 캐시 채움 → API 503 방지
+        enriched, geojson_current = build_urban_risk_data(kma_rain=None)
         geojson_map = _build_all_geojsons(enriched)
         cache.update_all_horizons(enriched, geojson_map)
-        logger.info(f"rule-based 완료 — {len(enriched)}개 지구")
+        logger.info(f"rule-based(더미) 완료 — {len(enriched)}개 지구")
 
-        # 2단계: ML 배치 추론 (백그라운드)
+        # 2단계: 동별 격자 강수량 조회 (고유 격자만 병렬 배치) 후 캐시 재갱신
         try:
-            from predictor import predict_all_horizons
-            ml_scores = await asyncio.get_event_loop().run_in_executor(
-                None, predict_all_horizons, enriched
-            )
-            if ml_scores:
-                enriched = apply_ml_scores(enriched, ml_scores)
+            from clients.kma import fetch_grid_rainfall_batch
+            from spatial.districts import DISTRICTS as _DISTRICTS
+            kma_grid_data = await fetch_grid_rainfall_batch(_DISTRICTS)
+            if kma_grid_data:
+                enriched, geojson_current = build_urban_risk_data(kma_grid_data=kma_grid_data)
                 geojson_map = _build_all_geojsons(enriched)
                 cache.update_all_horizons(enriched, geojson_map)
-                logger.info("ML 블렌딩 완료")
+                logger.info(f"KMA 격자 실황 반영 완료: {len(kma_grid_data)}개 격자")
         except Exception:
-            logger.warning("ML 추론 스킵 — rule-based 결과 유지", exc_info=True)
+            logger.warning("KMA 격자 조회 실패 → 더미 강수 유지", exc_info=True)
+
+        # ML 추론: 학습된 체크포인트 없으므로 생략 (rule-based 전용)
 
         # 3단계: DB 로그 저장 (비동기로 오류가 나도 서비스에 영향 없음)
         try:

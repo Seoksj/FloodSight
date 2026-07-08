@@ -127,34 +127,6 @@ export default function DistrictDetail({ district: d, horizon, getDisp, onBack }
           </div>
         )}
 
-        {/* 가까운 대피소 (더미) */}
-        <div style={{ fontSize: 13, fontWeight: 700, color: c.text2, margin: "20px 0 10px" }}>
-          가까운 대피소
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {[
-            { name: `${d.gu} 주민센터`, type: "실내 대피소 · 정원 320명", dist: "420m" },
-            { name: `${d.name} 복지회관`, type: "실내 대피소 · 정원 180명", dist: "760m" },
-          ].map(s => (
-            <div key={s.name}
-              style={{ display: "flex", alignItems: "center", gap: 11,
-                       border: `1px solid ${c.border}`, borderRadius: 11, padding: "11px 13px" }}>
-              <div style={{ width: 34, height: 34, borderRadius: 9, background: c.safeSoft,
-                            color: c.safe, display: "flex", alignItems: "center",
-                            justifyContent: "center", fontSize: 15, flexShrink: 0 }}>
-                ⛺
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 700 }}>{s.name}</div>
-                <div style={{ fontSize: 12, color: c.text3, fontWeight: 500 }}>{s.type}</div>
-              </div>
-              <div className="mono"
-                   style={{ marginLeft: "auto", fontSize: 13, fontWeight: 700, color: c.primary }}>
-                {s.dist}
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );

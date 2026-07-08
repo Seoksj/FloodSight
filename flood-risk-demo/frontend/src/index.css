@@ -30,6 +30,13 @@
 }
 .leaflet-bar { border: none !important; }
 
+.leaflet-control-attribution {
+  font-size: 10px !important;
+  opacity: 0.4 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 .fs-tooltip {
   background: var(--surface, #fff) !important;
   color: var(--text, #23211d) !important;

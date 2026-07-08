@@ -9,8 +9,12 @@ POST /predict        — ML 추론 엔드포인트 (기존 유지)
 """
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import Optional
+
+from dotenv import load_dotenv
+load_dotenv()  # .env 파일에서 KMA_API_KEY 등 환경변수 로드
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware

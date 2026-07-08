@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useTheme, gradeStyle } from "../ThemeContext.jsx";
 import { apiFetch } from "../api.js";
 
@@ -33,6 +33,8 @@ export default function LocationPanel({ onBack, onDistrictClick }) {
       { timeout: 10000 }
     );
   }, []);
+
+  useEffect(() => { detect(); }, []);
 
   const gs = result ? gradeStyle(c, result.grade) : null;
 
